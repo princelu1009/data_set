@@ -18,21 +18,7 @@ from PIL import Image
 import torch
 from torch.utils.data import Dataset, ConcatDataset
 from sklearn.model_selection import train_test_split
-
-
-# ======================================================
-#  Custom Dataset
-# ======================================================
-import os
-import cv2
 import random
-import numpy as np
-from PIL import Image
-import torch
-from torch.utils.data import Dataset, ConcatDataset
-from torchvision import datasets, transforms
-from sklearn.model_selection import train_test_split
-import pandas as pd
 
 # ======================================================
 #  Custom Dataset
