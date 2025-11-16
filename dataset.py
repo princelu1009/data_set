@@ -100,14 +100,17 @@ class CustomDataset(Dataset):
 #  Transforms
 # ======================================================
 def get_transforms(dataset_type):
-    if dataset_type == "xray" or dataset_type == "nih":
+    if dataset_type in ["xray", "nih"]:
+        # NIH & Chest X-ray are grayscale → convert to 3ch for MobileNet & ViT
         to_gray = [transforms.Grayscale(num_output_channels=3)]
-        normalize = transforms.Normalize([0.485, 0.456, 0.406],
-                                         [0.229, 0.224, 0.225])
     else:
         to_gray = []
-        normalize = transforms.Normalize([0.485, 0.456, 0.406],
-                                         [0.229, 0.224, 0.225])
+
+    normalize = transforms.Normalize(
+        [0.485, 0.456, 0.406],
+        [0.229, 0.224, 0.225]
+    )
+
 
     train_tfms = transforms.Compose([
         transforms.Resize((224, 224)),
@@ -231,48 +234,45 @@ test_dir_st  = os.path.join(PATH_STANFORD, "test")
 train_base_st = datasets.ImageFolder(train_dir_st)
 val_base_st   = datasets.ImageFolder(test_dir_st)
 train_clean_st = CustomDataset(train_base_st, transform=train_tfms, apply_compression=False)
-train_comp_x_st  = CustomDataset(train_base_st, transform=train_tfms, apply_compression=True)
-train_x_ray = ConcatDataset([train_clean_st,train_comp_x_st])
+train_comp_st  = CustomDataset(train_base_st, transform=train_tfms, apply_compression=True)
+train_stanford = ConcatDataset([train_clean_st, train_comp_st])
 print(len(train_clean_st))
 
 #For Nih
+# ===============================
 PATH_NIH = "/Users/princelu/Desktop/ALL/ML Learning/Final/CXR8"
 
 CSV_TRAIN = f"{PATH_NIH}/csv/train_clean.csv"
 CSV_VAL   = f"{PATH_NIH}/csv/val_clean.csv"
 
-# IMPORTANT: the images are inside images/images/
-IMG_ROOT  = f"{PATH_NIH}/images/images"
+IMG_ROOT = f"{PATH_NIH}/images/images" 
 
 def build_nih_df(csv_path, img_root):
     df = pd.read_csv(csv_path)
 
-    # Make full path to each image
+    # Must contain: "image" and "label"
     df["path"] = df["image"].apply(lambda x: os.path.join(img_root, x))
 
-    # Filter only existing files
     df = df[df["path"].apply(os.path.exists)]
     return df.reset_index(drop=True)
 
-# Load NIH CSVs
+
 train_df_nih = build_nih_df(CSV_TRAIN, IMG_ROOT)
 val_df_nih   = build_nih_df(CSV_VAL, IMG_ROOT)
 
-# Build transforms
 train_tfms_nih, val_tfms_nih = get_transforms("nih")
 
-# Clean + Compressed
 train_clean_nih = CustomDataset(train_df_nih, transform=train_tfms_nih,
                                 apply_compression=False, is_nih=True)
 train_comp_nih  = CustomDataset(train_df_nih, transform=train_tfms_nih,
-                                apply_compression=True,  is_nih=True)
+                                apply_compression=True, is_nih=True)
 train_nih = ConcatDataset([train_clean_nih, train_comp_nih])
 
-# Validation sets
 val_clean_nih = CustomDataset(val_df_nih, transform=val_tfms_nih,
                               apply_compression=False, is_nih=True)
 val_comp_nih  = CustomDataset(val_df_nih, transform=val_tfms_nih,
-                              apply_compression=True,  is_nih=True)
+                              apply_compression=True, is_nih=True)
+
 
 print(len(train_clean_nih))
 
