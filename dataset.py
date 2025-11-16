@@ -16,17 +16,46 @@ import random
 
 class CustomDataset(Dataset):
     def __init__(self, base_dataset, transform=None, apply_compression=False, quality=50):
+        """
+        base_dataset can be:
+        - A torchvision dataset that returns (PIL, label)
+        - A list of file paths (Food-101)
+        """
         self.base = base_dataset
         self.transform = transform
         self.apply_compression = apply_compression
         self.quality = quality
 
+        # ---- detect if base_dataset is list of paths ----
+        self.is_path_list = isinstance(base_dataset, list)
+
+        if self.is_path_list:
+            # Build class indexing automatically from folder names
+            class_names = sorted(list(set(p.split("/")[-2] for p in base_dataset)))
+            self.class_to_idx = {c: i for i, c in enumerate(class_names)}
+        else:
+            self.class_to_idx = None  # dataset provides its own label
+
     def __len__(self):
         return len(self.base)
 
     def __getitem__(self, idx):
-        x, y = self.base[idx]               # PIL image, label
         
+        # ========= CASE 1: base_dataset returns (PIL, label) =========
+        if not self.is_path_list:
+            x, y = self.base[idx]   # Oxford-IIIT Pet, ImageFolder, Stanford Cars
+
+        # ========= CASE 2: base_dataset is a list of image paths =========
+        else:
+            path = self.base[idx]
+
+            # Load PIL image
+            x = Image.open(path).convert("RGB")
+
+            # Label from folder name
+            class_name = path.split("/")[-2]
+            y = self.class_to_idx[class_name]
+
         # ---- apply compression ----
         if self.apply_compression:
             x = self._compress_pil_image(x, quality=self.quality)
@@ -50,6 +79,7 @@ class CustomDataset(Dataset):
         decoded = cv2.imdecode(encoded, cv2.IMREAD_COLOR)
         decoded = cv2.cvtColor(decoded, cv2.COLOR_BGR2RGB)
         return Image.fromarray(decoded)
+
 
 def get_transforms(is_grayscale=False):
     if is_grayscale:
@@ -83,13 +113,40 @@ train_base_pet = datasets.OxfordIIITPet(
     download=False
 )
 
-val_base = datasets.OxfordIIITPet(
-        root=root, split="test",
-        target_types="category", download=True)
+val_base_pet = datasets.OxfordIIITPet(
+    root=root,
+    split="test",
+    target_types="category",
+    download=False
+)
 
-#Apply compression 
-train_clean = CustomDataset(train_base_pet, transform=get_transforms(), apply_compression=False)
-train_comp  = CustomDataset(train_base_pet, transform=get_transforms(), apply_compression=True)
-train_set = ConcatDataset([train_clean, train_comp])
-print(len(train_clean))
-print(len(train_set))
+train_tfms, val_tfms = get_transforms()
+
+train_clean_pet = CustomDataset(train_base_pet, transform=train_tfms, apply_compression=False)
+train_comp_pet  = CustomDataset(train_base_pet, transform=train_tfms, apply_compression=True)
+train_pet = ConcatDataset([train_clean_pet, train_comp_pet])
+print(len(train_pet))
+
+
+#For Food 101
+PATH="/Users/princelu/Desktop/ALL/ML Learning/Final/food-101/food-101"
+
+def load_food101_split(root, split="train"):
+    images_root = os.path.join(root, "images")
+    split_file = os.path.join(root, "meta", f"{split}.txt")
+
+    with open(split_file, "r") as f:
+        items = [line.strip() for line in f]
+
+    paths = [os.path.join(images_root, p + ".jpg") for p in items]
+    return paths
+
+food_root = "/Users/princelu/Desktop/ALL/ML Learning/Final/food-101/food-101"
+food_train_paths = load_food101_split(food_root, "train")
+
+train_clean_food = CustomDataset(food_train_paths, transform=train_tfms, apply_compression=False)
+train_comp_food  = CustomDataset(food_train_paths, transform=train_tfms, apply_compression=True)
+
+train_food = ConcatDataset([train_clean_food, train_comp_food])
+print(len(train_food))
+
