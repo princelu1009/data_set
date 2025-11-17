@@ -24,9 +24,9 @@ if DATA_ROOT is None:
     )
 
 # ======================================================
-#  DATASET PATHS (RELATIVE TO DATA_ROOT)
+#  DATASET PATHS
 # ======================================================
-PATH_OXFORD   = DATA_ROOT                                     # contains oxford-iiit-pet/
+PATH_OXFORD   = DATA_ROOT
 PATH_FOOD     = os.path.join(DATA_ROOT, "food-101", "food-101")
 PATH_X_RAY    = os.path.join(DATA_ROOT, "chest_xray")
 PATH_OS       = os.path.join(DATA_ROOT, "PKG - Osteosarcoma Tumor Assessment")
@@ -38,10 +38,9 @@ PATH_NIH      = os.path.join(DATA_ROOT, "CXR8")
 #  Custom Dataset
 # ======================================================
 class CustomDataset(Dataset):
-    def __init__(self, base_dataset, transform=None, apply_compression=False,
-                 quality=50, is_nih=False):
+    def __init__(self, base_dataset, transform=None, mode="clean", quality=50, is_nih=False):
         self.transform = transform
-        self.apply_compression = apply_compression
+        self.mode = mode
         self.quality = quality
         self.is_nih = is_nih
 
@@ -66,67 +65,53 @@ class CustomDataset(Dataset):
     def __getitem__(self, idx):
         if self.is_nih:
             row = self.df.iloc[idx]
-            path = row["path"]
+            img = Image.open(row["path"]).convert("RGB")
             label = int(row["label"])
-            img = Image.open(path).convert("RGB")
-
         elif not self.is_path_list:
             img, label = self.base[idx]
-
         else:
             path = self.base[idx]
             img = Image.open(path).convert("RGB")
-            class_name = path.split("/")[-2]
-            label = self.class_to_idx[class_name]
+            label = self.class_to_idx[path.split("/")[-2]]
 
-        if self.apply_compression:
-            img = self._compress(img)
+        if self.mode in ["jpeg", "webp"]:
+            img = self._compress(img, ".jpg" if self.mode=="jpeg" else ".webp")
 
         if self.transform:
             img = self.transform(img)
 
         return img, label
 
-    def _compress(self, img_pil):
+    def _compress(self, img_pil, ext):
         img_cv = np.array(img_pil)[..., ::-1]
-        fmt = random.choice(["jpeg", "webp"])
-        flag = cv2.IMWRITE_WEBP_QUALITY if fmt == "webp" else cv2.IMWRITE_JPEG_QUALITY
-
-        ok, buf = cv2.imencode("." + fmt, img_cv, [flag, self.quality])
+        flag = cv2.IMWRITE_JPEG_QUALITY if ext == ".jpg" else cv2.IMWRITE_WEBP_QUALITY
+        ok, buf = cv2.imencode(ext, img_cv, [flag, self.quality])
         if not ok:
             return img_pil
-
         img_cv = cv2.imdecode(buf, cv2.IMREAD_COLOR)
-        img_rgb = cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB)
-        return Image.fromarray(img_rgb)
+        return Image.fromarray(cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB))
 
 
 # ======================================================
 #  Transforms
 # ======================================================
 def get_transforms(dataset_type):
-    if dataset_type in ["xray", "nih"]:
-        to_gray = [transforms.Grayscale(num_output_channels=3)]
-    else:
-        to_gray = []
+    to_gray = [transforms.Grayscale(num_output_channels=3)] if dataset_type in ["xray","nih"] else []
 
-    normalize = transforms.Normalize(
-        [0.485, 0.456, 0.406],
-        [0.229, 0.224, 0.225]
-    )
+    normalize = transforms.Normalize([0.485,0.456,0.406],[0.229,0.224,0.225])
 
     train_tfms = transforms.Compose([
-        transforms.Resize((224, 224)),
+        transforms.Resize((224,224)),
         transforms.RandomHorizontalFlip(),
         transforms.RandomRotation(10),
-        transforms.ColorJitter(0.2, 0.2, 0.2),
+        transforms.ColorJitter(0.2,0.2,0.2),
         *to_gray,
         transforms.ToTensor(),
         normalize
     ])
 
     val_tfms = transforms.Compose([
-        transforms.Resize((224, 224)),
+        transforms.Resize((224,224)),
         *to_gray,
         transforms.ToTensor(),
         normalize
@@ -135,157 +120,129 @@ def get_transforms(dataset_type):
 
 
 # ======================================================
-#  Food-101 Loader
+#  Loaders
 # ======================================================
 def load_food101_split(root, split="train"):
     images_root = os.path.join(root, "images")
     split_file = os.path.join(root, "meta", f"{split}.txt")
-
     with open(split_file, "r") as f:
-        items = [line.strip() for line in f]
+        return [os.path.join(images_root, line.strip()+".jpg") for line in f]
 
-    return [os.path.join(images_root, p + ".jpg") for p in items]
-
-
-# ======================================================
-#  Osteosarcoma Loader
-# ======================================================
 def collect_osteosarcoma(root):
-    roots = [
-        os.path.join(root, "Training-Set-1"),
-        os.path.join(root, "Training-Set-2"),
-        root
-    ]
-
-    all_paths = []
-    for base in roots:
-        if not os.path.exists(base):
-            continue
-        for r, _, files in os.walk(base):
+    all_paths=[]
+    for base in [
+        os.path.join(root,"Training-Set-1"),
+        os.path.join(root,"Training-Set-2"),
+        root]:
+        if not os.path.exists(base): continue
+        for r,_,files in os.walk(base):
             for f in files:
-                if f.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
-                    all_paths.append(os.path.join(r, f))
-
+                if f.lower().endswith((".jpg",".jpeg",".png",".webp")):
+                    all_paths.append(os.path.join(r,f))
     return sorted(all_paths)
 
-
-# ======================================================
-#  NIH Loader
-# ======================================================
 def build_nih_df(csv_path, img_root):
     df = pd.read_csv(csv_path)
     df["path"] = df["image"].apply(lambda x: os.path.join(img_root, x))
-    df = df[df["path"].apply(os.path.exists)]
-    return df.reset_index(drop=True)
+    return df[df["path"].apply(os.path.exists)].reset_index(drop=True)
+
+
+# ======================================================
+#  UNIVERSAL BUILDER
+# ======================================================
+def build_train_val_sets(base_train, base_val, train_tfms, val_tfms,
+                         is_nih=False, paths_train=None, paths_val=None):
+
+    # ---- TRAIN ----
+    if paths_train is None:
+        train_clean = CustomDataset(base_train, transform=train_tfms, mode="clean", is_nih=is_nih)
+        train_jpeg  = CustomDataset(base_train, transform=train_tfms, mode="jpeg", is_nih=is_nih)
+        train_webp  = CustomDataset(base_train, transform=train_tfms, mode="webp", is_nih=is_nih)
+    else:
+        train_clean = CustomDataset(paths_train, transform=train_tfms, mode="clean")
+        train_jpeg  = CustomDataset(paths_train, transform=train_tfms, mode="jpeg")
+        train_webp  = CustomDataset(paths_train, transform=train_tfms, mode="webp")
+
+    train_comb_jpeg = ConcatDataset([train_clean, train_jpeg])
+    train_comb_webp = ConcatDataset([train_clean, train_webp])
+
+    # ---- VALID ----
+    if paths_val is None:
+        val_clean = CustomDataset(base_val, transform=val_tfms, mode="clean", is_nih=is_nih)
+        val_jpeg  = CustomDataset(base_val, transform=val_tfms, mode="jpeg", is_nih=is_nih)
+        val_webp  = CustomDataset(base_val, transform=val_tfms, mode="webp", is_nih=is_nih)
+    else:
+        val_clean = CustomDataset(paths_val, transform=val_tfms, mode="clean")
+        val_jpeg  = CustomDataset(paths_val, transform=val_tfms, mode="jpeg")
+        val_webp  = CustomDataset(paths_val, transform=val_tfms, mode="webp")
+
+    val_comb_jpeg = ConcatDataset([val_clean, val_jpeg])
+    val_comb_webp = ConcatDataset([val_clean, val_webp])
+
+    return {
+        "train_clean_jpeg":train_clean,
+        "train_comb_jpeg": train_comb_jpeg,
+        "train_comb_webp": train_comb_webp,
+        "val_clean":val_clean,
+        "val_comb_jpeg": val_comb_jpeg,
+        "val_comb_webp": val_comb_webp,
+    }
 
 
 # ======================================================
 #  MAIN
 # ======================================================
 if __name__ == "__main__":
-    print("Using DATA_ROOT:", DATA_ROOT)
 
     train_tfms, val_tfms = get_transforms("other")
 
-    # -------------------------------
-    # Oxford-IIIT Pet
-    # -------------------------------
-    print("\nBuilding Oxford-IIIT Pet...")
+    # ------------------ Oxford Pet --------------------
+    train_base_pet = datasets.OxfordIIITPet(PATH_OXFORD, split="trainval", target_types="category")
+    val_base_pet   = datasets.OxfordIIITPet(PATH_OXFORD, split="test", target_types="category")
+    pet_sets = build_train_val_sets(train_base_pet, val_base_pet, train_tfms, val_tfms)
+    print("Oxford Pet JPEG:", len(pet_sets["train_comb_jpeg"]))
+    print("Oxford Pet WEBP:", len(pet_sets["train_comb_webp"]))
 
-    train_base_pet = datasets.OxfordIIITPet(
-        root=PATH_OXFORD,
-        split="trainval",
-        target_types="category",
-        download=False
-    )
+    # ------------------ Food 101 ----------------------
+    food_train = load_food101_split(PATH_FOOD, "train")
+    food_val   = load_food101_split(PATH_FOOD, "test")
+    food_sets = build_train_val_sets(None, None, train_tfms, val_tfms,
+                                     paths_train=food_train, paths_val=food_val)
+    print("Food101 JPEG:", len(food_sets["train_comb_jpeg"]))
+    print("Food101 WEBP:", len(food_sets["train_comb_webp"]))
 
-    val_base_pet = datasets.OxfordIIITPet(
-        root=PATH_OXFORD,
-        split="test",
-        target_types="category",
-        download=False
-    )
 
-    train_clean_pet = CustomDataset(train_base_pet, transform=train_tfms)
-    train_comp_pet = CustomDataset(train_base_pet, transform=train_tfms, apply_compression=True)
-    train_pet = ConcatDataset([train_clean_pet, train_comp_pet])
+    # ------------------ Chest X-ray --------------------
+    train_tfms_x, val_tfms_x = get_transforms("xray")
+    x_train = datasets.ImageFolder(os.path.join(PATH_X_RAY,"train"))
+    x_val   = datasets.ImageFolder(os.path.join(PATH_X_RAY,"test"))
+    x_sets = build_train_val_sets(x_train, x_val, train_tfms_x, val_tfms_x)
+    print("X-ray JPEG:", len(x_sets["train_comb_jpeg"]))
 
-    print("Oxford Pet train:", len(train_pet))
+    # ------------------ Osteosarcoma -------------------
+    os_all = collect_osteosarcoma(PATH_OS)
+    os_train, os_val = train_test_split(os_all, test_size=0.2, random_state=42)
+    os_sets = build_train_val_sets(None, None, train_tfms, val_tfms,
+                                   paths_train=os_train, paths_val=os_val)
+    print("Osteosarcoma JPEG:", len(os_sets["train_comb_jpeg"]))
 
-    # -------------------------------
-    # Food-101
-    # -------------------------------
-    print("\nBuilding Food-101...")
+    # ------------------ Stanford Cars ------------------
+    st_train = datasets.ImageFolder(os.path.join(PATH_STANFORD,"train"))
+    st_val   = datasets.ImageFolder(os.path.join(PATH_STANFORD,"test"))
+    st_sets = build_train_val_sets(st_train, st_val, train_tfms, val_tfms)
+    print("Stanford Cars JPEG:", len(st_sets["train_comb_jpeg"]))
 
-    food_train_paths = load_food101_split(PATH_FOOD, "train")
-
-    train_clean_food = CustomDataset(food_train_paths, transform=train_tfms)
-    train_comp_food = CustomDataset(food_train_paths, transform=train_tfms, apply_compression=True)
-    train_food = ConcatDataset([train_clean_food, train_comp_food])
-
-    print("Food-101 train:", len(train_food))
-
-    # -------------------------------
-    # Chest X-ray
-    # -------------------------------
-    print("\nBuilding Chest X-ray...")
-
-    train_tfms_xray, val_tfms_xray = get_transforms("xray")
-
-    train_base_xray = datasets.ImageFolder(os.path.join(PATH_X_RAY, "train"))
-    val_base_xray = datasets.ImageFolder(os.path.join(PATH_X_RAY, "test"))
-
-    train_clean_xray = CustomDataset(train_base_xray, transform=train_tfms_xray)
-    train_comp_xray = CustomDataset(train_base_xray, transform=train_tfms_xray, apply_compression=True)
-    train_x_ray = ConcatDataset([train_clean_xray, train_comp_xray])
-
-    print("Chest X-ray train:", len(train_x_ray))
-
-    # -------------------------------
-    # Osteosarcoma
-    # -------------------------------
-    print("\nBuilding Osteosarcoma...")
-
-    OS_ALL = collect_osteosarcoma(PATH_OS)
-    train_paths, val_paths = train_test_split(OS_ALL, test_size=0.2, shuffle=True, random_state=42)
-
-    train_clean_os = CustomDataset(train_paths, transform=train_tfms)
-    train_comp_os = CustomDataset(train_paths, transform=train_tfms, apply_compression=True)
-    train_os = ConcatDataset([train_clean_os, train_comp_os])
-
-    print("Osteosarcoma train:", len(train_os))
-
-    # -------------------------------
-    # Stanford Cars
-    # -------------------------------
-    print("\nBuilding Stanford Cars...")
-
-    train_base_st = datasets.ImageFolder(os.path.join(PATH_STANFORD, "train"))
-    val_base_st = datasets.ImageFolder(os.path.join(PATH_STANFORD, "test"))
-
-    train_clean_st = CustomDataset(train_base_st, transform=train_tfms)
-    train_comp_st = CustomDataset(train_base_st, transform=train_tfms, apply_compression=True)
-    train_stanford = ConcatDataset([train_clean_st, train_comp_st])
-
-    print("Stanford Cars train:", len(train_stanford))
-
-    # -------------------------------
-    # NIH
-    # -------------------------------
-    print("\nBuilding NIH CXR8...")
-
+    # ------------------ NIH CXR8 -----------------------
     CSV_TRAIN = os.path.join(PATH_NIH, "csv", "train_clean.csv")
     CSV_VAL   = os.path.join(PATH_NIH, "csv", "val_clean.csv")
     IMG_ROOT  = os.path.join(PATH_NIH, "images", "images")
 
-    train_df_nih = build_nih_df(CSV_TRAIN, IMG_ROOT)
+    df_train = build_nih_df(CSV_TRAIN, IMG_ROOT)
+    df_val   = build_nih_df(CSV_VAL, IMG_ROOT)
+    train_tfms_nih, val_tfms_nih = get_transforms("nih")
 
-    train_tfms_nih, _ = get_transforms("nih")
+    nih_sets = build_train_val_sets(None, None, train_tfms_nih, val_tfms_nih,
+                                    is_nih=True, paths_train=df_train, paths_val=df_val)
+    print("NIH JPEG:", len(nih_sets["train_comb_jpeg"]))
 
-    train_clean_nih = CustomDataset(train_df_nih, transform=train_tfms_nih, is_nih=True)
-    train_comp_nih  = CustomDataset(train_df_nih, transform=train_tfms_nih, apply_compression=True, is_nih=True)
-    train_nih = ConcatDataset([train_clean_nih, train_comp_nih])
-
-    print("NIH train:", len(train_nih))
-
-    print("\n🎉 All datasets built successfully!")
+    print("\n🎉 ALL datasets built successfully!")
