@@ -19,6 +19,8 @@ if DATA_ROOT is None:
         "❌ DATA_ROOT environment variable not set.\n"
         "Set it before running:\n\n"
         "   export DATA_ROOT=\"/Users/you/datasets\"\n"
+       # "export DATA_ROOT="/Users/princelu/Desktop/ALL/ML Learning/Final"
+       # "python "/Users/princelu/Desktop/ALL/ML Learning/Backbone/extract.py" 
         "or\n"
         "   setx DATA_ROOT \"D:\\\\datasets\" (Windows)\n"
     )
