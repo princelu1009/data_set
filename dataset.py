@@ -5,15 +5,19 @@ import random
 import pandas as pd
 import numpy as np
 
-from PIL import Image
+from PIL import Image,ImageFile
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset, ConcatDataset
 from torchvision import datasets, transforms
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 # ======================================================
 #  PORTABLE ROOT PATH (WORKS ON ANY COMPUTER)
 # ======================================================
-DATA_ROOT = os.getenv("DATA_ROOT")
+
+SCRIPT_DIR_P = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_ROOT = os.path.join(SCRIPT_DIR_P,"Final")
+
 if DATA_ROOT is None:
     raise RuntimeError(
         "❌ DATA_ROOT environment variable not set.\n"
@@ -145,8 +149,29 @@ def collect_osteosarcoma(root):
 
 def build_nih_df(csv_path, img_root):
     df = pd.read_csv(csv_path)
-    df["path"] = df["image"].apply(lambda x: os.path.join(img_root, x))
-    return df[df["path"].apply(os.path.exists)].reset_index(drop=True)
+
+    all_paths = {}
+
+    for root, dirs, files in os.walk(img_root):
+        for f in files:
+            if f.lower().endswith((".png", ".jpg", ".jpeg")):
+                all_paths[f] = os.path.join(root, f)
+
+    print(f"🧾 Found {len(all_paths)} NIH image files across all subfolders.")
+
+    # ---------------------------------------------------
+    # 2. Map CSV filenames to actual paths
+    # ---------------------------------------------------
+    df["path"] = df["image"].map(all_paths)
+
+    # ---------------------------------------------------
+    # 3. Drop CSV rows whose image file doesn't exist
+    # ---------------------------------------------------
+    df = df[df["path"].notnull()].reset_index(drop=True)
+
+    print(f"🧾 Matched {len(df)} rows successfully with real images.")
+    return df
+
 
 
 # ======================================================
@@ -155,40 +180,60 @@ def build_nih_df(csv_path, img_root):
 def build_train_val_sets(base_train, base_val, train_tfms, val_tfms,
                          is_nih=False, paths_train=None, paths_val=None):
 
-    # ---- TRAIN ----
-    if paths_train is None:
-        train_clean = CustomDataset(base_train, transform=train_tfms, mode="clean", is_nih=is_nih)
-        train_jpeg  = CustomDataset(base_train, transform=train_tfms, mode="jpeg", is_nih=is_nih)
-        train_webp  = CustomDataset(base_train, transform=train_tfms, mode="webp", is_nih=is_nih)
+    # ============================
+    # TRAIN SETS
+    # ============================
+    if is_nih:
+        # NIH MUST use DataFrame loader
+        train_clean = CustomDataset(paths_train, transform=train_tfms, mode="clean", is_nih=True)
+        train_jpeg  = CustomDataset(paths_train, transform=train_tfms, mode="jpeg", is_nih=True)
+        train_webp  = CustomDataset(paths_train, transform=train_tfms, mode="webp", is_nih=True)
+
     else:
-        train_clean = CustomDataset(paths_train, transform=train_tfms, mode="clean")
-        train_jpeg  = CustomDataset(paths_train, transform=train_tfms, mode="jpeg")
-        train_webp  = CustomDataset(paths_train, transform=train_tfms, mode="webp")
+        if paths_train is None:
+            train_clean = CustomDataset(base_train, transform=train_tfms, mode="clean")
+            train_jpeg  = CustomDataset(base_train, transform=train_tfms, mode="jpeg")
+            train_webp  = CustomDataset(base_train, transform=train_tfms, mode="webp")
+        else:
+            train_clean = CustomDataset(paths_train, transform=train_tfms, mode="clean")
+            train_jpeg  = CustomDataset(paths_train, transform=train_tfms, mode="jpeg")
+            train_webp  = CustomDataset(paths_train, transform=train_tfms, mode="webp")
 
     train_comb_jpeg = ConcatDataset([train_clean, train_jpeg])
     train_comb_webp = ConcatDataset([train_clean, train_webp])
 
-    # ---- VALID ----
-    if paths_val is None:
-        val_clean = CustomDataset(base_val, transform=val_tfms, mode="clean", is_nih=is_nih)
-        val_jpeg  = CustomDataset(base_val, transform=val_tfms, mode="jpeg", is_nih=is_nih)
-        val_webp  = CustomDataset(base_val, transform=val_tfms, mode="webp", is_nih=is_nih)
+    # ============================
+    # VALIDATION SETS
+    # ============================
+    if is_nih:
+        val_clean = CustomDataset(paths_val, transform=val_tfms, mode="clean", is_nih=True)
+        val_jpeg  = CustomDataset(paths_val, transform=val_tfms, mode="jpeg", is_nih=True)
+        val_webp  = CustomDataset(paths_val, transform=val_tfms, mode="webp", is_nih=True)
+
     else:
-        val_clean = CustomDataset(paths_val, transform=val_tfms, mode="clean")
-        val_jpeg  = CustomDataset(paths_val, transform=val_tfms, mode="jpeg")
-        val_webp  = CustomDataset(paths_val, transform=val_tfms, mode="webp")
+        if paths_val is None:
+            val_clean = CustomDataset(base_val, transform=val_tfms, mode="clean")
+            val_jpeg  = CustomDataset(base_val, transform=val_tfms, mode="jpeg")
+            val_webp  = CustomDataset(base_val, transform=val_tfms, mode="webp")
+        else:
+            val_clean = CustomDataset(paths_val, transform=val_tfms, mode="clean")
+            val_jpeg  = CustomDataset(paths_val, transform=val_tfms, mode="jpeg")
+            val_webp  = CustomDataset(paths_val, transform=val_tfms, mode="webp")
 
     val_comb_jpeg = ConcatDataset([val_clean, val_jpeg])
     val_comb_webp = ConcatDataset([val_clean, val_webp])
 
+    # Return everything
     return {
-        "train_clean_jpeg":train_clean,
+        "train_clean": train_clean,
         "train_comb_jpeg": train_comb_jpeg,
         "train_comb_webp": train_comb_webp,
-        "val_clean":val_clean,
+
+        "val_clean": val_clean,
         "val_comb_jpeg": val_comb_jpeg,
         "val_comb_webp": val_comb_webp,
     }
+
 
 
 # ======================================================
@@ -237,7 +282,8 @@ if __name__ == "__main__":
     # ------------------ NIH CXR8 -----------------------
     CSV_TRAIN = os.path.join(PATH_NIH, "csv", "train_clean.csv")
     CSV_VAL   = os.path.join(PATH_NIH, "csv", "val_clean.csv")
-    IMG_ROOT  = os.path.join(PATH_NIH, "images", "images")
+    IMG_ROOT = os.path.join(PATH_NIH, "images")
+
 
     df_train = build_nih_df(CSV_TRAIN, IMG_ROOT)
     df_val   = build_nih_df(CSV_VAL, IMG_ROOT)
