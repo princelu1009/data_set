@@ -286,7 +286,12 @@ if __name__ == "__main__":
 
 
     df_train = build_nih_df(CSV_TRAIN, IMG_ROOT)
-    df_val   = build_nih_df(CSV_VAL, IMG_ROOT)
+    df_val   = build_nih_df(CSV_VAL, IMG_ROOT)  
+    # Keep 30% of training data
+    df_train = df_train.sample(frac=0.1, random_state=42).reset_index(drop=True)
+
+    # Keep 30% of validation data
+    df_val = df_val.sample(frac=0.1, random_state=42).reset_index(drop=True)
     train_tfms_nih, val_tfms_nih = get_transforms("nih")
 
     nih_sets = build_train_val_sets(None, None, train_tfms_nih, val_tfms_nih,
