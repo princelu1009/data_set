@@ -182,70 +182,72 @@ def get_export_transforms(dataset_type):
 if __name__ == "__main__":
     print("\n🚀 Starting dataset extraction...\n")
 
-    # # -----------------------------------------------
-    # # Oxford Pet
-    # # -----------------------------------------------
-    # train_pet = datasets.OxfordIIITPet(PATH_OXFORD, split="trainval", target_types="category")
-    # val_pet   = datasets.OxfordIIITPet(PATH_OXFORD, split="test",     target_types="category")
+    # -----------------------------------------------
+    # Oxford Pet
+    # -----------------------------------------------
+    train_pet = datasets.OxfordIIITPet(PATH_OXFORD, split="trainval", target_types="category")
+    val_pet   = datasets.OxfordIIITPet(PATH_OXFORD, split="test",     target_types="category")
 
-    # tfm_pet_train, tfm_pet_val = get_export_transforms("other")
+    tfm_pet_train, tfm_pet_val = get_export_transforms("other")
 
-    # pet_sets = build_train_val_sets(train_pet, val_pet, tfm_pet_train, tfm_pet_val)
-    # export_full_dataset(pet_sets, "oxford-pet")
+    pet_sets = build_train_val_sets(train_pet, val_pet, tfm_pet_train, tfm_pet_val)
+    export_full_dataset(pet_sets, "oxford-pet")
 
-    # # -----------------------------------------------
-    # # Food-101
-    # # -----------------------------------------------
-    # food_train = load_food101_split(PATH_FOOD, "train")
-    # food_val   = load_food101_split(PATH_FOOD, "test")
+    # -----------------------------------------------
+    # Food-101
+    # -----------------------------------------------
+    food_train = load_food101_split(PATH_FOOD, "train")
+    food_val   = load_food101_split(PATH_FOOD, "test")
 
-    # tfm_food_train, tfm_food_val = get_export_transforms("other")
+    food_train = food_train[:int(len(food_train)*0.1)]
+    food_val   = food_val[:int(len(food_val)*0.1)]
+    tfm_food_train, tfm_food_val = get_export_transforms("other")
 
-    # food_sets = build_train_val_sets(
-    #     None, None,
-    #     tfm_food_train, tfm_food_val,
-    #     paths_train=food_train,
-    #     paths_val=food_val
-    # )
-    # export_full_dataset(food_sets, "food-101")
+    food_sets = build_train_val_sets(
+        None, None,
+        tfm_food_train, tfm_food_val,
+        paths_train=food_train,
+        paths_val=food_val
+    )
+    export_full_dataset(food_sets, "food-101")
 
     # -----------------------------------------------
     # Chest X-ray (IMPORTANT: needs grayscale→RGB)
     # -----------------------------------------------
-    # tfm_x_train, tfm_x_val = get_export_transforms("xray")
+    tfm_x_train, tfm_x_val = get_export_transforms("xray")
 
-    # x_train = datasets.ImageFolder(os.path.join(PATH_X_RAY, "train"))
-    # x_val   = datasets.ImageFolder(os.path.join(PATH_X_RAY, "test"))
+    x_train = datasets.ImageFolder(os.path.join(PATH_X_RAY, "train"))
+    x_val   = datasets.ImageFolder(os.path.join(PATH_X_RAY, "test"))
 
-    # x_sets = build_train_val_sets(x_train, x_val, tfm_x_train, tfm_x_val)
-    # export_full_dataset(x_sets, "chest-xray")
+    x_sets = build_train_val_sets(x_train, x_val, tfm_x_train, tfm_x_val)
+    export_full_dataset(x_sets, "chest-xray")
 
-    # # # -----------------------------------------------
-    # # Osteosarcoma
     # # -----------------------------------------------
-    # os_all = collect_osteosarcoma(PATH_OS)
-    # os_train, os_val = train_test_split(os_all, test_size=0.2, random_state=42)
+    # Osteosarcoma
+    # -----------------------------------------------
+    os_all = collect_osteosarcoma(PATH_OS)
+    os_train, os_val = train_test_split(os_all, test_size=0.2, random_state=42)
 
-    # tfm_os_train, tfm_os_val = get_export_transforms("other")
+    tfm_os_train, tfm_os_val = get_export_transforms("other")
 
-    # os_sets = build_train_val_sets(
-    #     None, None,
-    #     tfm_os_train, tfm_os_val,
-    #     paths_train=os_train,
-    #     paths_val=os_val
-    # )
-    # export_full_dataset(os_sets, "osteosarcoma")
+    os_sets = build_train_val_sets(
+        None, None,
+        tfm_os_train, tfm_os_val,
+        paths_train=os_train,
+        paths_val=os_val
+    )
+    export_full_dataset(os_sets, "osteosarcoma")
 
     # -----------------------------------------------
     # Stanford Cars
     # -----------------------------------------------
-    # st_train = datasets.ImageFolder(os.path.join(PATH_STANFORD, "train"))
-    # st_val   = datasets.ImageFolder(os.path.join(PATH_STANFORD, "test"))
+    st_train = datasets.ImageFolder(os.path.join(PATH_STANFORD, "train"))
+    st_val   = datasets.ImageFolder(os.path.join(PATH_STANFORD, "test"))
 
-    # tfm_st_train, tfm_st_val = get_export_transforms("other")
+    tfm_st_train, tfm_st_val = get_export_transforms("other")
 
-    # st_sets = build_train_val_sets(st_train, st_val, tfm_st_train, tfm_st_val)
-    # export_full_dataset(st_sets, "stanford-cars")
+    st_sets = build_train_val_sets(st_train, st_val, tfm_st_train, tfm_st_val)
+    export_full_dataset(st_sets, "stanford-cars")
 
     # # -----------------------------------------------
     # NIH CXR-8
