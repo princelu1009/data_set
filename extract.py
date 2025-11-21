@@ -257,6 +257,9 @@ if __name__ == "__main__":
     df_train = build_nih_df(CSV_TRAIN, IMG_ROOT)
     df_val   = build_nih_df(CSV_VAL, IMG_ROOT)
 
+    df_train = df_train.sample(frac=0.1).reset_index(drop=True)
+    df_val   = df_val.sample(frac=0.1).reset_index(drop=True)
+
     tfm_nih_train, tfm_nih_val = get_export_transforms("nih")
 
     nih_sets = build_train_val_sets(
