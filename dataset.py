@@ -236,66 +236,66 @@ def build_train_val_sets(base_train, base_val, train_tfms, val_tfms,
 
 
 
-# ======================================================
-#  MAIN
-# ======================================================
-if __name__ == "__main__":
+# # ======================================================
+# #  MAIN
+# # ======================================================
+# if __name__ == "__main__":
 
-    train_tfms, val_tfms = get_transforms("other")
+#     train_tfms, val_tfms = get_transforms("other")
 
-    # ------------------ Oxford Pet --------------------
-    train_base_pet = datasets.OxfordIIITPet(PATH_OXFORD, split="trainval", target_types="category")
-    val_base_pet   = datasets.OxfordIIITPet(PATH_OXFORD, split="test", target_types="category")
-    pet_sets = build_train_val_sets(train_base_pet, val_base_pet, train_tfms, val_tfms)
-    print("Oxford Pet JPEG:", len(pet_sets["train_comb_jpeg"]))
-    print("Oxford Pet WEBP:", len(pet_sets["train_comb_webp"]))
+#     # ------------------ Oxford Pet --------------------
+#     train_base_pet = datasets.OxfordIIITPet(PATH_OXFORD, split="trainval", target_types="category")
+#     val_base_pet   = datasets.OxfordIIITPet(PATH_OXFORD, split="test", target_types="category")
+#     pet_sets = build_train_val_sets(train_base_pet, val_base_pet, train_tfms, val_tfms)
+#     print("Oxford Pet JPEG:", len(pet_sets["train_comb_jpeg"]))
+#     print("Oxford Pet WEBP:", len(pet_sets["train_comb_webp"]))
 
-    # ------------------ Food 101 ----------------------
-    food_train = load_food101_split(PATH_FOOD, "train")
-    food_val   = load_food101_split(PATH_FOOD, "test")
-    food_sets = build_train_val_sets(None, None, train_tfms, val_tfms,
-                                     paths_train=food_train, paths_val=food_val)
-    print("Food101 JPEG:", len(food_sets["train_comb_jpeg"]))
-    print("Food101 WEBP:", len(food_sets["train_comb_webp"]))
-
-
-    # ------------------ Chest X-ray --------------------
-    train_tfms_x, val_tfms_x = get_transforms("xray")
-    x_train = datasets.ImageFolder(os.path.join(PATH_X_RAY,"train"))
-    x_val   = datasets.ImageFolder(os.path.join(PATH_X_RAY,"test"))
-    x_sets = build_train_val_sets(x_train, x_val, train_tfms_x, val_tfms_x)
-    print("X-ray JPEG:", len(x_sets["train_comb_jpeg"]))
-
-    # ------------------ Osteosarcoma -------------------
-    os_all = collect_osteosarcoma(PATH_OS)
-    os_train, os_val = train_test_split(os_all, test_size=0.2, random_state=42)
-    os_sets = build_train_val_sets(None, None, train_tfms, val_tfms,
-                                   paths_train=os_train, paths_val=os_val)
-    print("Osteosarcoma JPEG:", len(os_sets["train_comb_jpeg"]))
-
-    # ------------------ Stanford Cars ------------------
-    st_train = datasets.ImageFolder(os.path.join(PATH_STANFORD,"train"))
-    st_val   = datasets.ImageFolder(os.path.join(PATH_STANFORD,"test"))
-    st_sets = build_train_val_sets(st_train, st_val, train_tfms, val_tfms)
-    print("Stanford Cars JPEG:", len(st_sets["train_comb_jpeg"]))
-
-    # ------------------ NIH CXR8 -----------------------
-    CSV_TRAIN = os.path.join(PATH_NIH, "csv", "train_clean.csv")
-    CSV_VAL   = os.path.join(PATH_NIH, "csv", "val_clean.csv")
-    IMG_ROOT = os.path.join(PATH_NIH, "images")
+#     # ------------------ Food 101 ----------------------
+#     food_train = load_food101_split(PATH_FOOD, "train")
+#     food_val   = load_food101_split(PATH_FOOD, "test")
+#     food_sets = build_train_val_sets(None, None, train_tfms, val_tfms,
+#                                      paths_train=food_train, paths_val=food_val)
+#     print("Food101 JPEG:", len(food_sets["train_comb_jpeg"]))
+#     print("Food101 WEBP:", len(food_sets["train_comb_webp"]))
 
 
-    df_train = build_nih_df(CSV_TRAIN, IMG_ROOT)
-    df_val   = build_nih_df(CSV_VAL, IMG_ROOT)  
-    # Keep 30% of training data
-    df_train = df_train.sample(frac=0.1, random_state=42).reset_index(drop=True)
+#     # ------------------ Chest X-ray --------------------
+#     train_tfms_x, val_tfms_x = get_transforms("xray")
+#     x_train = datasets.ImageFolder(os.path.join(PATH_X_RAY,"train"))
+#     x_val   = datasets.ImageFolder(os.path.join(PATH_X_RAY,"test"))
+#     x_sets = build_train_val_sets(x_train, x_val, train_tfms_x, val_tfms_x)
+#     print("X-ray JPEG:", len(x_sets["train_comb_jpeg"]))
 
-    # Keep 30% of validation data
-    df_val = df_val.sample(frac=0.1, random_state=42).reset_index(drop=True)
-    train_tfms_nih, val_tfms_nih = get_transforms("nih")
+#     # ------------------ Osteosarcoma -------------------
+#     os_all = collect_osteosarcoma(PATH_OS)
+#     os_train, os_val = train_test_split(os_all, test_size=0.2, random_state=42)
+#     os_sets = build_train_val_sets(None, None, train_tfms, val_tfms,
+#                                    paths_train=os_train, paths_val=os_val)
+#     print("Osteosarcoma JPEG:", len(os_sets["train_comb_jpeg"]))
 
-    nih_sets = build_train_val_sets(None, None, train_tfms_nih, val_tfms_nih,
-                                    is_nih=True, paths_train=df_train, paths_val=df_val)
-    print("NIH JPEG:", len(nih_sets["train_comb_jpeg"]))
+#     # ------------------ Stanford Cars ------------------
+#     st_train = datasets.ImageFolder(os.path.join(PATH_STANFORD,"train"))
+#     st_val   = datasets.ImageFolder(os.path.join(PATH_STANFORD,"test"))
+#     st_sets = build_train_val_sets(st_train, st_val, train_tfms, val_tfms)
+#     print("Stanford Cars JPEG:", len(st_sets["train_comb_jpeg"]))
 
-    print("\n🎉 ALL datasets built successfully!")
+#     # ------------------ NIH CXR8 -----------------------
+#     CSV_TRAIN = os.path.join(PATH_NIH, "csv", "train_clean.csv")
+#     CSV_VAL   = os.path.join(PATH_NIH, "csv", "val_clean.csv")
+#     IMG_ROOT = os.path.join(PATH_NIH, "images")
+
+
+#     df_train = build_nih_df(CSV_TRAIN, IMG_ROOT)
+#     df_val   = build_nih_df(CSV_VAL, IMG_ROOT)  
+#     # Keep 30% of training data
+#     df_train = df_train.sample(frac=0.1, random_state=42).reset_index(drop=True)
+
+#     # Keep 30% of validation data
+#     df_val = df_val.sample(frac=0.1, random_state=42).reset_index(drop=True)
+#     train_tfms_nih, val_tfms_nih = get_transforms("nih")
+
+#     nih_sets = build_train_val_sets(None, None, train_tfms_nih, val_tfms_nih,
+#                                     is_nih=True, paths_train=df_train, paths_val=df_val)
+#     print("NIH JPEG:", len(nih_sets["train_comb_jpeg"]))
+
+#     print("\n🎉 ALL datasets built successfully!")
